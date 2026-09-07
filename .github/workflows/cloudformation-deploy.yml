@@ -64,6 +64,11 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --region ${AWS_REGION}
 
+      - name: Upload input CSV
+        run: |
+          aws s3 cp input/sample.csv \
+            s3://${SOURCE_BUCKET}/input/sample.csv
+
       - name: Show stack outputs
         run: |
           aws cloudformation describe-stacks \
