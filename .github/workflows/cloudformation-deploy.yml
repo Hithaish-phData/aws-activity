@@ -17,6 +17,7 @@ permissions:
 env:
   AWS_REGION: ap-south-2
   DEPLOYMENT_BUCKET: ade-github-actions-artifacts-hithaish
+  SOURCE_BUCKET: ade-cfn-glue-source-hithaish
   STACK_NAME: ADE-CFN-Glue-Pipeline
   GLUE_SCRIPT_KEY: glue/glue_job.py
   CFN_TEMPLATE: cloudformation/pipeline.yml
