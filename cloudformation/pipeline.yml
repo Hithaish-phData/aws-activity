@@ -384,6 +384,7 @@ Resources:
     Properties:
       Name: ADE-CFN-Crawler-Success-Trigger
       Type: CONDITIONAL
+      StartOnCreation: true
       WorkflowName: !Ref GlueWorkflow
 
       Predicate:
