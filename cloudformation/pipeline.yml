@@ -1,0 +1,381 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+  ADE S3 to Glue data pipeline. Creates source and destination S3 buckets,
+  Lambda trigger, Glue crawler, Glue Data Catalog database, Glue workflow,
+  Glue Python Shell job, and IAM roles.
+
+Parameters:
+
+  SourceBucketName:
+    Type: String
+    Default: ade-cfn-glue-source-hithaish
+    Description: S3 bucket for incoming CSV files.
+
+  DestinationBucketName:
+    Type: String
+    Default: ade-cfn-glue-destination-hithaish
+    Description: S3 bucket for transformed output.
+
+  GlueScriptBucket:
+    Type: String
+    Description: S3 bucket where GitHub Actions uploads the Glue Python script.
+
+  GlueScriptKey:
+    Type: String
+    Default: glue/glue_job.py
+    Description: S3 key of the Glue Python Shell script.
+
+Resources:
+
+  # ---------------------------------------------------------
+  # SOURCE S3 BUCKET
+  # ---------------------------------------------------------
+
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    DependsOn:
+      - LambdaInvokePermission
+    Properties:
+      BucketName: !Ref SourceBucketName
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt TriggerLambda.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: input/
+                  - Name: suffix
+                    Value: .csv
+
+  # ---------------------------------------------------------
+  # DESTINATION S3 BUCKET
+  # ---------------------------------------------------------
+
+  DestinationBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref DestinationBucketName
+
+  # ---------------------------------------------------------
+  # LAMBDA IAM ROLE
+  # ---------------------------------------------------------
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ADE-CFN-Glue-Trigger-Lambda-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+      Policies:
+        - PolicyName: LambdaLogsAndGlueWorkflow
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+
+              - Effect: Allow
+                Action:
+                  - glue:StartWorkflowRun
+                Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/ADE-CFN-S3-Glue-Workflow
+
+  # ---------------------------------------------------------
+  # LAMBDA FUNCTION
+  # ---------------------------------------------------------
+
+  TriggerLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ADE-CFN-S3-Glue-Trigger-Lambda
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+
+          glue = boto3.client("glue")
+
+          WORKFLOW_NAME = "ADE-CFN-S3-Glue-Workflow"
+
+          def lambda_handler(event, context):
+
+              print("Received S3 event:")
+              print(json.dumps(event))
+
+              response = glue.start_workflow_run(
+                  Name=WORKFLOW_NAME
+              )
+
+              workflow_run_id = response["RunId"]
+
+              print(f"Started Glue Workflow: {WORKFLOW_NAME}")
+              print(f"Workflow Run ID: {workflow_run_id}")
+
+              return {
+                  "statusCode": 200,
+                  "body": json.dumps({
+                      "message": "Glue workflow started successfully",
+                      "workflow_name": WORKFLOW_NAME,
+                      "run_id": workflow_run_id
+                  })
+              }
+
+  # ---------------------------------------------------------
+  # S3 → LAMBDA PERMISSION
+  # ---------------------------------------------------------
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TriggerLambda
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub arn:aws:s3:::${SourceBucketName}
+
+  # ---------------------------------------------------------
+  # GLUE CRAWLER IAM ROLE
+  # ---------------------------------------------------------
+
+  GlueCrawlerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ADE-CFN-Glue-Crawler-Role
+
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - glue.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+      Policies:
+        - PolicyName: GlueCrawlerS3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: !Sub arn:aws:s3:::${SourceBucketName}/input/*
+
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !Sub arn:aws:s3:::${SourceBucketName}
+
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+
+  # ---------------------------------------------------------
+  # GLUE PYTHON SHELL IAM ROLE
+  # ---------------------------------------------------------
+
+  GlueJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ADE-CFN-Glue-PythonShell-Role
+
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - glue.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+      Policies:
+        - PolicyName: GluePythonShellS3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub arn:aws:s3:::${SourceBucketName}/input/*
+
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !Sub arn:aws:s3:::${SourceBucketName}
+
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub arn:aws:s3:::${DestinationBucketName}/output/*
+
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketLocation
+                Resource: !Sub arn:aws:s3:::${DestinationBucketName}
+
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub arn:aws:s3:::${GlueScriptBucket}/${GlueScriptKey}
+
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+
+  # ---------------------------------------------------------
+  # GLUE DATA CATALOG DATABASE
+  # ---------------------------------------------------------
+
+  GlueDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: ade_cfn_glue_catalog
+        Description: Data Catalog database for the ADE S3 Glue pipeline.
+
+  # ---------------------------------------------------------
+  # GLUE CRAWLER
+  # ---------------------------------------------------------
+
+  GlueCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: ADE-CFN-Source-S3-Crawler
+      Role: !GetAtt GlueCrawlerRole.Arn
+      DatabaseName: !Ref GlueDatabase
+      TablePrefix: src_
+
+      Targets:
+        S3Targets:
+          - Path: !Sub s3://${SourceBucketName}/input/
+
+  # ---------------------------------------------------------
+  # GLUE PYTHON SHELL JOB
+  # ---------------------------------------------------------
+
+  GluePythonShellJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: ADE-CFN-Glue-PythonShell-Transform
+      Role: !GetAtt GlueJobRole.Arn
+
+      Command:
+        Name: pythonshell
+        PythonVersion: '3.9'
+        ScriptLocation: !Sub s3://${GlueScriptBucket}/${GlueScriptKey}
+
+      MaxCapacity: 0.0625
+      MaxRetries: 0
+      Timeout: 30
+
+      DefaultArguments:
+        --INPUT_PATH: !Sub s3://${SourceBucketName}/input/
+        --OUTPUT_PATH: !Sub s3://${DestinationBucketName}/output/
+
+  # ---------------------------------------------------------
+  # GLUE WORKFLOW
+  # ---------------------------------------------------------
+
+  GlueWorkflow:
+    Type: AWS::Glue::Workflow
+    Properties:
+      Name: ADE-CFN-S3-Glue-Workflow
+      Description: Orchestrates the S3 crawler and Python Shell transformation job.
+
+  # ---------------------------------------------------------
+  # WORKFLOW START TRIGGER
+  # ---------------------------------------------------------
+
+  WorkflowStartTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: ADE-CFN-Workflow-Start
+      Type: ON_DEMAND
+      WorkflowName: !Ref GlueWorkflow
+      Actions:
+        - CrawlerName: !Ref GlueCrawler
+
+  # ---------------------------------------------------------
+  # CRAWLER SUCCESS → PYTHON SHELL TRIGGER
+  # ---------------------------------------------------------
+
+  CrawlerSuccessTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: ADE-CFN-Crawler-Success-Trigger
+      Type: CONDITIONAL
+      WorkflowName: !Ref GlueWorkflow
+
+      Predicate:
+        Logical: ANY
+        Conditions:
+          - LogicalOperator: EQUALS
+            CrawlerName: !Ref GlueCrawler
+            CrawlState: SUCCEEDED
+
+      Actions:
+        - JobName: !Ref GluePythonShellJob
+
+Outputs:
+
+  SourceBucket:
+    Description: Source S3 bucket
+    Value: !Ref SourceBucket
+
+  DestinationBucket:
+    Description: Destination S3 bucket
+    Value: !Ref DestinationBucket
+
+  LambdaFunction:
+    Description: Lambda function that starts the Glue workflow
+    Value: !Ref TriggerLambda
+
+  GlueWorkflow:
+    Description: Glue workflow
+    Value: !Ref GlueWorkflow
+
+  GlueCrawler:
+    Description: Glue crawler
+    Value: !Ref GlueCrawler
+
+  GluePythonShellJob:
+    Description: Glue Python Shell transformation job
+    Value: !Ref GluePythonShellJob
+
+  GlueDatabase:
+    Description: Glue Data Catalog database
+    Value: !Ref GlueDatabase
