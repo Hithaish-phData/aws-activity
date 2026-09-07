@@ -273,15 +273,16 @@ Resources:
 
   GlueCrawler:
     Type: AWS::Glue::Crawler
+    DependsOn:
+      - SourceBucket
     Properties:
-      Name: ADE-CFN-Source-S3-Crawler
+      Name: ADE-Source-S3-Crawler
       Role: !GetAtt GlueCrawlerRole.Arn
       DatabaseName: !Ref GlueDatabase
-      TablePrefix: src_
-
       Targets:
         S3Targets:
-          - Path: !Sub s3://${SourceBucketName}/input/
+          - Path: !Sub "s3://${SourceBucketName}/input/"
+      TablePrefix: src_
 
   # ---------------------------------------------------------
   # GLUE PYTHON SHELL JOB
