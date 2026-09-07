@@ -530,8 +530,13 @@ processed.
 | Reproducibility | Lower | Higher |
 | CI/CD | Not used | Implemented |
 
+## 4. Architecture Diagram of AWS Activity
 
-## Challenges Faced
+![Architecture Diagram](images/AWS_Architecture.drawio.png)
+
+
+
+## 5. Challenges Faced
 
 ### 1. Manual Approach
 
