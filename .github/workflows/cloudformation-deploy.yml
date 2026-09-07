@@ -23,13 +23,11 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::157320905721:role/ADE-GitHubActions-Deploy-Role
 
 jobs:
-
   deploy:
     name: Deploy CloudFormation Stack
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v6
 
