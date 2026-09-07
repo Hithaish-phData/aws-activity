@@ -276,7 +276,7 @@ Resources:
     DependsOn:
       - SourceBucket
     Properties:
-      Name: ADE-Source-S3-Crawler
+      Name: ADE-CFN-Source-S3-Crawler
       Role: !GetAtt GlueCrawlerRole.Arn
       DatabaseName: !Ref GlueDatabase
       Targets:
