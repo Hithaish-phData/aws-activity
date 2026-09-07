@@ -26,6 +26,7 @@ Parameters:
     Default: glue/glue_job.py
     Description: S3 key of the Glue Python Shell script.
 
+
 Resources:
 
   # ---------------------------------------------------------
@@ -50,6 +51,7 @@ Resources:
                   - Name: suffix
                     Value: .csv
 
+
   # ---------------------------------------------------------
   # DESTINATION S3 BUCKET
   # ---------------------------------------------------------
@@ -59,6 +61,7 @@ Resources:
     Properties:
       BucketName: !Ref DestinationBucketName
 
+
   # ---------------------------------------------------------
   # LAMBDA IAM ROLE
   # ---------------------------------------------------------
@@ -67,6 +70,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: ADE-CFN-Glue-Trigger-Lambda-Role
+
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -94,6 +98,7 @@ Resources:
                 Action:
                   - glue:StartWorkflowRun
                 Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/ADE-CFN-S3-Glue-Workflow
+
 
   # ---------------------------------------------------------
   # LAMBDA FUNCTION
@@ -140,6 +145,7 @@ Resources:
                   })
               }
 
+
   # ---------------------------------------------------------
   # S3 → LAMBDA PERMISSION
   # ---------------------------------------------------------
@@ -152,6 +158,7 @@ Resources:
       Principal: s3.amazonaws.com
       SourceAccount: !Ref AWS::AccountId
       SourceArn: !Sub arn:aws:s3:::${SourceBucketName}
+
 
   # ---------------------------------------------------------
   # GLUE CRAWLER IAM ROLE
@@ -173,29 +180,52 @@ Resources:
               - sts:AssumeRole
 
       Policies:
-        - PolicyName: GlueCrawlerS3Access
+        - PolicyName: GlueCrawlerS3AndCatalogAccess
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
 
+              # S3 object access
               - Effect: Allow
                 Action:
                   - s3:GetObject
                   - s3:GetObjectVersion
                 Resource: !Sub arn:aws:s3:::${SourceBucketName}/input/*
 
+              # S3 bucket access
               - Effect: Allow
                 Action:
                   - s3:ListBucket
                   - s3:GetBucketLocation
                 Resource: !Sub arn:aws:s3:::${SourceBucketName}
 
+              # Glue Data Catalog access
+              - Effect: Allow
+                Action:
+                  - glue:GetDatabase
+                  - glue:GetDatabases
+                  - glue:GetTable
+                  - glue:GetTables
+                  - glue:GetPartition
+                  - glue:GetPartitions
+                  - glue:BatchGetPartition
+                  - glue:CreateTable
+                  - glue:UpdateTable
+                  - glue:BatchCreatePartition
+                  - glue:UpdatePartition
+                Resource:
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${GlueDatabase}
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${GlueDatabase}/*
+
+              # CloudWatch Logs
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: arn:aws:logs:*:*:*
+
 
   # ---------------------------------------------------------
   # GLUE PYTHON SHELL IAM ROLE
@@ -222,38 +252,45 @@ Resources:
             Version: '2012-10-17'
             Statement:
 
+              # Read source files
               - Effect: Allow
                 Action:
                   - s3:GetObject
                 Resource: !Sub arn:aws:s3:::${SourceBucketName}/input/*
 
+              # List source bucket
               - Effect: Allow
                 Action:
                   - s3:ListBucket
                   - s3:GetBucketLocation
                 Resource: !Sub arn:aws:s3:::${SourceBucketName}
 
+              # Write transformed output
               - Effect: Allow
                 Action:
                   - s3:PutObject
                 Resource: !Sub arn:aws:s3:::${DestinationBucketName}/output/*
 
+              # Destination bucket location
               - Effect: Allow
                 Action:
                   - s3:GetBucketLocation
                 Resource: !Sub arn:aws:s3:::${DestinationBucketName}
 
+              # Read Glue Python Shell script
               - Effect: Allow
                 Action:
                   - s3:GetObject
                 Resource: !Sub arn:aws:s3:::${GlueScriptBucket}/${GlueScriptKey}
 
+              # CloudWatch Logs
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: arn:aws:logs:*:*:*
+
 
   # ---------------------------------------------------------
   # GLUE DATA CATALOG DATABASE
@@ -267,6 +304,7 @@ Resources:
         Name: ade_cfn_glue_catalog
         Description: Data Catalog database for the ADE S3 Glue pipeline.
 
+
   # ---------------------------------------------------------
   # GLUE CRAWLER
   # ---------------------------------------------------------
@@ -279,10 +317,13 @@ Resources:
       Name: ADE-CFN-Source-S3-Crawler
       Role: !GetAtt GlueCrawlerRole.Arn
       DatabaseName: !Ref GlueDatabase
+
       Targets:
         S3Targets:
           - Path: !Sub "s3://${SourceBucketName}/input/"
+
       TablePrefix: src_
+
 
   # ---------------------------------------------------------
   # GLUE PYTHON SHELL JOB
@@ -307,6 +348,7 @@ Resources:
         --INPUT_PATH: !Sub s3://${SourceBucketName}/input/
         --OUTPUT_PATH: !Sub s3://${DestinationBucketName}/output/
 
+
   # ---------------------------------------------------------
   # GLUE WORKFLOW
   # ---------------------------------------------------------
@@ -316,6 +358,7 @@ Resources:
     Properties:
       Name: ADE-CFN-S3-Glue-Workflow
       Description: Orchestrates the S3 crawler and Python Shell transformation job.
+
 
   # ---------------------------------------------------------
   # WORKFLOW START TRIGGER
@@ -327,8 +370,10 @@ Resources:
       Name: ADE-CFN-Workflow-Start
       Type: ON_DEMAND
       WorkflowName: !Ref GlueWorkflow
+
       Actions:
         - CrawlerName: !Ref GlueCrawler
+
 
   # ---------------------------------------------------------
   # CRAWLER SUCCESS → PYTHON SHELL TRIGGER
@@ -350,6 +395,7 @@ Resources:
 
       Actions:
         - JobName: !Ref GluePythonShellJob
+
 
 Outputs:
 
