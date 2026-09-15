@@ -8,6 +8,7 @@ on:
       - 'cloudformation/**'
       - 'glue/**'
       - 'lambda/**'
+      - 'input/**'
       - '.github/workflows/**'
 
 permissions:

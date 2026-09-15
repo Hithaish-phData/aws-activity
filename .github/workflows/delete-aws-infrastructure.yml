@@ -1,0 +1,46 @@
+name: Delete AWS Infrastructure
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-south-2
+  STACK_NAME: ADE-CFN-Glue-Pipeline
+  AWS_ROLE_ARN: arn:aws:iam::157320905721:role/ADE-GitHubActions-Deploy-Role
+
+jobs:
+  delete:
+    name: Delete CloudFormation Stack
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: GitHubActionsDelete
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS identity
+        run: |
+          aws sts get-caller-identity
+
+      - name: Delete CloudFormation stack
+        run: |
+          aws cloudformation delete-stack \
+            --stack-name ${STACK_NAME} \
+            --region ${AWS_REGION}
+
+      - name: Wait for stack deletion
+        run: |
+          aws cloudformation wait stack-delete-complete \
+            --stack-name ${STACK_NAME} \
+            --region ${AWS_REGION}
+
+      - name: Confirm deletion
+        run: |
+          echo "CloudFormation stack ${STACK_NAME} has been deleted successfully."
