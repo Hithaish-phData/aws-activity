@@ -29,6 +29,14 @@ jobs:
         run: |
           aws sts get-caller-identity
 
+      - name: Empty CloudFormation S3 buckets
+        run: |
+          echo "Emptying CFN source bucket..."
+          aws s3 rm s3://ade-cfn-glue-source-hithaish --recursive
+
+          echo "Emptying CFN destination bucket..."
+          aws s3 rm s3://ade-cfn-glue-destination-hithaish --recursive
+
       - name: Delete CloudFormation stack
         run: |
           aws cloudformation delete-stack \
@@ -43,4 +51,4 @@ jobs:
 
       - name: Confirm deletion
         run: |
-          echo "CloudFormation stack ${STACK_NAME} has been deleted successfully."
+          echo "CloudFormation stack ${STACK_NAME} deleted successfully."
