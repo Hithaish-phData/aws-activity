@@ -2,6 +2,11 @@ name: Delete AWS Infrastructure
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm_stack_name:
+        description: 'Type ADE-CFN-Glue-Pipeline to confirm deletion'
+        required: true
+        type: string
 
 permissions:
   id-token: write
@@ -18,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6.2.4
         with:
@@ -29,13 +35,42 @@ jobs:
         run: |
           aws sts get-caller-identity
 
+      - name: Confirm stack deletion
+        run: |
+          if [ "${{ inputs.confirm_stack_name }}" != "${STACK_NAME}" ]; then
+            echo "ERROR: Stack name confirmation does not match."
+            exit 1
+          fi
+
+          echo "Stack name confirmed. Proceeding with deletion."
+
+      - name: Get S3 bucket names from CloudFormation outputs
+        run: |
+          SOURCE_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name ${STACK_NAME} \
+            --region ${AWS_REGION} \
+            --query "Stacks[0].Outputs[?OutputKey=='SourceBucketName'].OutputValue" \
+            --output text)
+
+          DESTINATION_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name ${STACK_NAME} \
+            --region ${AWS_REGION} \
+            --query "Stacks[0].Outputs[?OutputKey=='DestinationBucketName'].OutputValue" \
+            --output text)
+
+          echo "SOURCE_BUCKET=${SOURCE_BUCKET}" >> $GITHUB_ENV
+          echo "DESTINATION_BUCKET=${DESTINATION_BUCKET}" >> $GITHUB_ENV
+
+          echo "Source bucket: ${SOURCE_BUCKET}"
+          echo "Destination bucket: ${DESTINATION_BUCKET}"
+
       - name: Empty CloudFormation S3 buckets
         run: |
-          echo "Emptying CFN source bucket..."
-          aws s3 rm s3://ade-cfn-glue-source-hithaish --recursive
+          echo "Emptying source bucket..."
+          aws s3 rm "s3://${SOURCE_BUCKET}" --recursive
 
-          echo "Emptying CFN destination bucket..."
-          aws s3 rm s3://ade-cfn-glue-destination-hithaish --recursive
+          echo "Emptying destination bucket..."
+          aws s3 rm "s3://${DESTINATION_BUCKET}" --recursive
 
       - name: Delete CloudFormation stack
         run: |

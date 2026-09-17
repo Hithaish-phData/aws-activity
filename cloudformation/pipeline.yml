@@ -5,17 +5,21 @@ Description: >
   Lambda trigger, Glue crawler, Glue Data Catalog database, Glue workflow,
   Glue Python Shell job, and IAM roles.
 
+# ---------------------------------------------------------
+# PARAMETERS
+# ---------------------------------------------------------
+
 Parameters:
 
   SourceBucketName:
     Type: String
     Default: ade-cfn-glue-source-hithaish
-    Description: S3 bucket for incoming CSV files.
+    Description: Name of the CloudFormation source S3 bucket.
 
   DestinationBucketName:
     Type: String
     Default: ade-cfn-glue-destination-hithaish
-    Description: S3 bucket for transformed output.
+    Description: Name of the CloudFormation destination S3 bucket.
 
   GlueScriptBucket:
     Type: String
@@ -26,6 +30,10 @@ Parameters:
     Default: glue/glue_job.py
     Description: S3 key of the Glue Python Shell script.
 
+
+# ---------------------------------------------------------
+# RESOURCES
+# ---------------------------------------------------------
 
 Resources:
 
@@ -39,6 +47,7 @@ Resources:
       - LambdaInvokePermission
     Properties:
       BucketName: !Ref SourceBucketName
+
       NotificationConfiguration:
         LambdaConfigurations:
           - Event: s3:ObjectCreated:*
@@ -82,9 +91,11 @@ Resources:
               - sts:AssumeRole
 
       Policies:
+
         - PolicyName: LambdaLogsAndGlueWorkflow
           PolicyDocument:
             Version: '2012-10-17'
+
             Statement:
 
               - Effect: Allow
@@ -180,9 +191,11 @@ Resources:
               - sts:AssumeRole
 
       Policies:
+
         - PolicyName: GlueCrawlerS3AndCatalogAccess
           PolicyDocument:
             Version: '2012-10-17'
+
             Statement:
 
               # S3 object access
@@ -247,9 +260,11 @@ Resources:
               - sts:AssumeRole
 
       Policies:
+
         - PolicyName: GluePythonShellS3Access
           PolicyDocument:
             Version: '2012-10-17'
+
             Statement:
 
               # Read source files
@@ -313,6 +328,7 @@ Resources:
     Type: AWS::Glue::Crawler
     DependsOn:
       - SourceBucket
+
     Properties:
       Name: ADE-CFN-Source-S3-Crawler
       Role: !GetAtt GlueCrawlerRole.Arn
@@ -397,6 +413,10 @@ Resources:
       Actions:
         - JobName: !Ref GluePythonShellJob
 
+
+# ---------------------------------------------------------
+# OUTPUTS
+# ---------------------------------------------------------
 
 Outputs:
 
