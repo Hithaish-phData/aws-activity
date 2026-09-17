@@ -72,6 +72,46 @@ jobs:
           echo "Emptying destination bucket..."
           aws s3 rm "s3://${DESTINATION_BUCKET}" --recursive
 
+      - name: Stop Glue crawler
+        run: |
+          echo "Checking Glue crawler status..."
+
+          CRAWLER_STATE=$(aws glue get-crawler \
+            --name ADE-CFN-Source-S3-Crawler \
+            --region ${AWS_REGION} \
+            --query 'Crawler.State' \
+            --output text)
+
+          echo "Crawler state: ${CRAWLER_STATE}"
+
+          if [ "${CRAWLER_STATE}" = "RUNNING" ]; then
+            echo "Stopping Glue crawler..."
+
+            aws glue stop-crawler \
+              --name ADE-CFN-Source-S3-Crawler \
+              --region ${AWS_REGION}
+
+            echo "Waiting for crawler to stop..."
+
+            while true; do
+              CRAWLER_STATE=$(aws glue get-crawler \
+                --name ADE-CFN-Source-S3-Crawler \
+                --region ${AWS_REGION} \
+                --query 'Crawler.State' \
+                --output text)
+
+              echo "Crawler state: ${CRAWLER_STATE}"
+
+              if [ "${CRAWLER_STATE}" != "RUNNING" ]; then
+                break
+              fi
+
+              sleep 10
+            done
+          fi
+
+          echo "Glue crawler is no longer running."
+
       - name: Delete CloudFormation stack
         run: |
           aws cloudformation delete-stack \
