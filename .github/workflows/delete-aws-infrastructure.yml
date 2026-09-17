@@ -49,13 +49,13 @@ jobs:
           SOURCE_BUCKET=$(aws cloudformation describe-stacks \
             --stack-name ${STACK_NAME} \
             --region ${AWS_REGION} \
-            --query "Stacks[0].Outputs[?OutputKey=='SourceBucketName'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='SourceBucket'].OutputValue" \
             --output text)
 
           DESTINATION_BUCKET=$(aws cloudformation describe-stacks \
             --stack-name ${STACK_NAME} \
             --region ${AWS_REGION} \
-            --query "Stacks[0].Outputs[?OutputKey=='DestinationBucketName'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='DestinationBucket'].OutputValue" \
             --output text)
 
           echo "SOURCE_BUCKET=${SOURCE_BUCKET}" >> $GITHUB_ENV
