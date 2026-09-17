@@ -513,6 +513,56 @@ processed.
 
 ![CloudFormation Workflow Result](images/CFN/CFN_Workflow_Result.png)
 
+
+## 2.13 CloudFormation Infrastructure Deletion
+
+The CloudFormation infrastructure can be safely removed using the
+GitHub Actions deletion workflow.
+
+### Steps
+
+1. Navigate to the **Actions** tab in the GitHub repository.
+2. Select **Delete AWS Infrastructure**.
+3. Click **Run workflow**.
+4. Enter the exact stack name:
+
+   `ADE-CFN-Glue-Pipeline`
+
+5. Run the workflow.
+
+### Running Workflow with safety check - Manually type Stack name
+
+![Delete Workflow with Safety Check](images/CFN/Delete_workflow_with_saftey_check.png)
+
+### Deletion Process
+
+The workflow performs the following steps:
+
+```text
+GitHub Actions
+      ↓
+GitHub OIDC Authentication
+      ↓
+Verify AWS Identity
+      ↓
+Validate Stack Name
+      ↓
+Read S3 Bucket Names from CloudFormation Outputs
+      ↓
+Empty CloudFormation S3 Buckets
+      ↓
+Stop Glue Crawler if Running
+      ↓
+Delete CloudFormation Stack
+      ↓
+Wait for Stack Deletion
+ 
+ ```
+
+### Final Result
+
+ ![Successful Deletion](images/CFN/Successful_deletion.png)
+
 ------------------------------------------------------------------------
 
 ## 3. Manual vs CloudFormation Approach
